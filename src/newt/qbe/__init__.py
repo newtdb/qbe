@@ -4,13 +4,18 @@ import re
 import six
 
 is_identifier = re.compile(r'\w+$').match
-is_access = re.compile(r"state\s*(->\s*(\w+|'\w+')\s*)+$").match
+is_access = re.compile(r"state\s*(->\s*(\d+|'\w+')\s*)+$").match
 
 class scalar:
 
     def __init__(self, expr, type=''):
         if is_identifier(expr):
             expr = 'state ->> %r' % expr
+
+        if is_access(expr):
+            expr = '>>'.join(expr.rsplit('>', 1))
+
+
         expr = '(' + expr + ')'
         if type:
             expr = '%s::%s' % (expr, type)
@@ -37,7 +42,7 @@ class array:
 
     def __init__(self, expr, type=''):
         if is_identifier(expr):
-            expr = "state -> " + expr
+            expr = "state -> %r" % expr
 
         if is_access(expr):
             expr = (

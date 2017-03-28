@@ -24,6 +24,13 @@ class QBETests(newt.db.tests.base.TestCase):
             b"SELECT * FROM newt WHERE ((state ->> 'x') = 'y')",
             self.qbe.sql(dict(x='y')))
 
+        from newt.qbe import scalar
+        self.qbe['x'] = scalar("state -> 'x'")
+        self.conn.commit()
+        self.assertEqual(
+            b"SELECT * FROM newt WHERE ((state ->> 'x') = 'y')",
+            self.qbe.sql(dict(x='y')))
+
         self.qbe['x'] = scalar('x', type='int')
         self.conn.commit()
         self.assertEqual(
@@ -62,7 +69,7 @@ class QBETests(newt.db.tests.base.TestCase):
         self.conn.commit()
         self.assertEqual(
             b"SELECT * FROM newt WHERE "
-            b"array(select value from jsonb_array_elements_text(state -> x))"
+            b"array(select value from jsonb_array_elements_text(state -> 'x'))"
             b" && ARRAY['a', 'b', 'c']",
             self.qbe.sql(dict(x=['a', 'b', 'c'])))
 
@@ -71,7 +78,7 @@ class QBETests(newt.db.tests.base.TestCase):
         self.assertEqual(
             b"SELECT * FROM newt WHERE "
             b"array("
-            b"select value::int from jsonb_array_elements_text(state -> x)"
+            b"select value::int from jsonb_array_elements_text(state -> 'x')"
             b")"
             b" && ARRAY[0, 1, 2]",
             self.qbe.sql(dict(x=[0,1,2])))
