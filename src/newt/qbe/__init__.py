@@ -9,12 +9,12 @@ import six
 is_identifier = re.compile(r'\w+$').match
 is_access = re.compile(r"state\s*(->\s*(\d+|'\w+')\s*)+$").match
 
-class Index(persistent.Persistent):
+class Search(persistent.Persistent):
 
     def order_by(self, cursor, query):
         return self.expr.encode('ascii')
 
-class scalar(Index):
+class scalar(Search):
 
     def __init__(self, expr, type=''):
         if is_identifier(expr):
@@ -46,7 +46,7 @@ class scalar(Index):
         else:
             return cursor.mogrify(self._range, (min, max))
 
-class array(Index):
+class array(Search):
 
     def __init__(self, expr, type=''):
         if is_identifier(expr):
@@ -68,7 +68,7 @@ class array(Index):
     def __call__(self, cursor, query):
         return cursor.mogrify(self._any, (query,))
 
-class prefix(Index):
+class prefix(Search):
 
     def __init__(self, expr, delimiter=''):
         if is_identifier(expr):
@@ -85,7 +85,7 @@ class prefix(Index):
     def __call__(self, cursor, query):
         return cursor.mogrify(self._like, (query,))
 
-class fulltext(Index):
+class fulltext(Search):
 
     def __init__(self, expr,
                  config=None,
