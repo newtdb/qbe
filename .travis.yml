@@ -13,7 +13,7 @@ python:
 install:
   - pip install -U pip setuptools zc.buildout
   - buildout parts=test
-script: bin/test -v1j99
+script: bin/test
 cache:
   directories:
     - $HOME/.cache/pip
