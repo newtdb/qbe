@@ -8,6 +8,7 @@ import six
 
 is_identifier = re.compile(r'\w+$').match
 is_access = re.compile(r"state\s*(->\s*(\d+|'\w+')\s*)+$").match
+is_paranthesized = re.compile("\w*[(].+[)]$").match
 
 class Search(persistent.Persistent):
 
@@ -23,10 +24,12 @@ class scalar(Search):
         if is_access(expr):
             expr = '>>'.join(expr.rsplit('>', 1))
 
+        if not is_paranthesized(expr):
+            expr = '(' + expr + ')'
 
-        expr = '(' + expr + ')'
         if type:
             expr = '%s::%s' % (expr, type)
+
         self.expr = expr
         d = dict(expr=expr)
         self._range = '((%(expr)s >= %%s) and (%(expr)s <= %%s))' % d
@@ -46,6 +49,13 @@ class scalar(Search):
         else:
             return cursor.mogrify(self._range, (min, max))
 
+    def index_sql(self, name):
+        expr = self.expr
+        if not is_paranthesized(expr):
+            expr = '(' + expr + ')'
+        return "create index newt_%s_idx on newt (%s)" % (
+            name, expr)
+
 class array(Search):
 
     def __init__(self, expr, type=''):
@@ -59,7 +69,7 @@ class array(Search):
                     expr
                     )
                 )
-        else:
+        elif not is_paranthesized(expr):
             expr = '(' + expr + ')'
 
         self.expr = expr
@@ -67,6 +77,10 @@ class array(Search):
 
     def __call__(self, cursor, query):
         return cursor.mogrify(self._any, (query,))
+
+    def index_sql(self, name):
+        return "create index newt_%s_idx on newt using gin (%s)" % (
+            name, self.expr)
 
 class prefix(Search):
 
@@ -77,13 +91,19 @@ class prefix(Search):
         if is_access(expr):
             expr = '>>'.join(expr.rsplit('>', 1))
 
-        expr = '(' + expr + ')'
+        if not is_paranthesized(expr):
+            expr = '(' + expr + ')'
+
         self.expr = expr
 
         self._like = "(%s like %%s || '%s%%%%')" % (expr, delimiter)
 
     def __call__(self, cursor, query):
         return cursor.mogrify(self._like, (query,))
+
+    def index_sql(self, name):
+        return "create index newt_%s_idx on newt (%s text_pattern_ops)" % (
+            name, self.expr)
 
 class fulltext(Search):
 
@@ -100,7 +120,7 @@ class fulltext(Search):
         if is_access(expr):
             expr = '>>'.join(expr.rsplit('>', 1))
             expr = 'to_tsvector(%s%s)' % (config, expr)
-        else:
+        elif not is_paranthesized(expr):
             expr = '(' + expr + ')'
 
         self.expr = expr
@@ -122,6 +142,26 @@ class fulltext(Search):
         if self.parser is not None:
             query = self.parser(query)
         return cursor.mogrify(self._order, (query,))
+
+    def index_sql(self, name):
+        return "create index newt_%s_idx on newt using gin (%s)" % (
+            name, self.expr)
+
+class sql(persistent.Persistent):
+
+    def __init__(self, cond, order=None):
+        self.cond = cond
+        self.order = order
+
+    def __call__(self, cursor, query):
+        return cursor.mogrify(self.cond, query)
+
+    def order_by(self, cursor, query):
+        if self.order:
+            if isinstance(self.order, bytes):
+                return self.order
+            else:
+                return cursor.mogrify(self.order, query)
 
 class QBE(persistent.mapping.PersistentMapping):
 
