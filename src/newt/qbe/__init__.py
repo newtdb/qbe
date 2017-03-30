@@ -17,7 +17,7 @@ class Search(persistent.Persistent):
 
 class scalar(Search):
 
-    def __init__(self, expr, type=''):
+    def __init__(self, expr, type=None):
         if is_identifier(expr):
             expr = 'state ->> %r' % expr
 
@@ -58,7 +58,7 @@ class scalar(Search):
 
 class array(Search):
 
-    def __init__(self, expr, type=''):
+    def __init__(self, expr, type=None):
         if is_identifier(expr):
             expr = "state -> %r" % expr
 
@@ -84,19 +84,21 @@ class array(Search):
 
 class prefix(Search):
 
-    def __init__(self, expr, delimiter=''):
+    def __init__(self, expr, delimiter=None):
         if is_identifier(expr):
-            expr = 'state ->> %r' % expr
+            expr = 'state -> %r' % expr
 
         if is_access(expr):
             expr = '>>'.join(expr.rsplit('>', 1))
+            if delimiter:
+                expr = "(%s) || '%s'" % (expr, delimiter)
 
         if not is_paranthesized(expr):
             expr = '(' + expr + ')'
 
         self.expr = expr
 
-        self._like = "(%s like %%s || '%s%%%%')" % (expr, delimiter)
+        self._like = "(%s like %%s || '%s%%%%')" % (expr, delimiter or '')
 
     def __call__(self, cursor, query):
         return cursor.mogrify(self._like, (query,))
@@ -165,21 +167,39 @@ class sql(persistent.Persistent):
 
 class QBE(persistent.mapping.PersistentMapping):
 
-    def sql(self, query, order_by=None, desc=False):
+    def sql(self, query, order_by=()):
         with contextlib.closing(read_only_cursor(self._p_jar)) as cursor:
             result = []
             wheres = [self[name](cursor, q) for name, q in query.items()]
             if wheres:
                 result.append(
-                    b' AND '.join(
+                    b' AND\n  '.join(
                         self[name](cursor, q)
                         for name, q in sorted(query.items())
                         )
                     )
+            else:
+                result.append(b'true')
+
+
             if order_by:
-                result.append(b' ORDER BY ' +
-                              self[order_by].order_by(cursor, query[order_by]))
-                if desc:
-                    result.append(b' DESC')
+                if isinstance(order_by, str):
+                    order_by = (order_by,)
+                result.append(
+                    b'\nORDER BY ' +
+                    b',\n  '.join(
+                        self[item].order_by(cursor, query.get(item))
+                        if isinstance(item, str) else
+                        self[item[0]].order_by(cursor, query.get(item[0]))
+                        + (b' DESC' if item[1] else b'')
+                        for item in order_by
+                        ))
 
         return b''.join(result)
+
+    def index_sql(self, *names):
+        return ';\n'.join(
+            self[name].index_sql(name)
+            for name in sorted(names or self)
+            if hasattr(self[name], 'index_sql')
+            )

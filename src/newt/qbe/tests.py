@@ -155,9 +155,9 @@ class QBETests(newt.db.tests.base.TestCase):
 
         self.qbe['x'] = prefix('x', delimiter='/')
         self.conn.commit()
-        self.assertEqual(b"((state ->> 'x') like 'y' || '/%')",
+        self.assertEqual(b"(((state ->> 'x') || '/') like 'y' || '/%')",
                          self.qbe.sql(dict(x='y')))
-        self.assertEqual(b"(state ->> 'x')",
+        self.assertEqual(b"((state ->> 'x') || '/')",
                          self.qbe['x'].order_by(self.cursor, 'y'))
 
         self.qbe['x'] = prefix("state -> 0 -> 'x'")
@@ -252,10 +252,10 @@ class QBETests(newt.db.tests.base.TestCase):
         self.conn.commit()
 
         self.assertEqual(
-            b"can_view(state) && ARRAY['p1', 'g2'] AND"
-            b" (path(state) like '/foo' || '/%') AND"
-            b" to_tsvector(state ->> 'text') @@ to_tsquery('thursday')"
-            b" ORDER BY ts_rank_cd({0.1, 0.2, 0.4, 1},"
+            b"can_view(state) && ARRAY['p1', 'g2'] AND\n"
+            b"  (path(state) like '/foo' || '/%') AND\n"
+            b"  to_tsvector(state ->> 'text') @@ to_tsquery('thursday')\n"
+            b"ORDER BY ts_rank_cd({0.1, 0.2, 0.4, 1},"
             b" to_tsvector(state ->> 'text'),"
             b" to_tsquery('thursday'))",
             self.qbe.sql(dict(path="/foo",
@@ -265,17 +265,41 @@ class QBETests(newt.db.tests.base.TestCase):
             )
 
         self.assertEqual(
-            b"can_view(state) && ARRAY['p1', 'g2'] AND"
-            b" (path(state) like '/foo' || '/%') AND"
-            b" to_tsvector(state ->> 'text') @@ to_tsquery('thursday')"
-            b" ORDER BY ts_rank_cd({0.1, 0.2, 0.4, 1},"
+            b"can_view(state) && ARRAY['p1', 'g2'] AND\n"
+            b"  (path(state) like '/foo' || '/%') AND\n"
+            b"  to_tsvector(state ->> 'text') @@ to_tsquery('thursday')\n"
+            b"ORDER BY ts_rank_cd({0.1, 0.2, 0.4, 1},"
             b" to_tsvector(state ->> 'text'),"
             b" to_tsquery('thursday')) DESC",
             self.qbe.sql(dict(path="/foo",
                               can_view=['p1', 'g2'],
                               text="thursday"),
-                         order_by='text', desc=True),
+                         order_by=[('text', True)],
+                         )
             )
 
 def crazy_parse(q):
     return 'CRAZY ' + q
+
+
+README = os.path.join(os.path.dirname(__file__), '..', '..', '..', 'README.rst')
+if os.path.exists(README):
+    def test_suite():
+        import doctest
+        import newt.db.tests.testdocs
+        from zope.testing import setupstack
+
+        def setUp(test):
+            newt.db.tests.testdocs.setUp(test)
+            conn = newt.db.connection(test.globs['dsn'])
+            conn.create_text_index('content_text', 'text')
+            conn.close()
+
+        return unittest.TestSuite((
+            unittest.makeSuite(QBETests),
+            doctest.DocFileSuite(
+                '../../../README.rst',
+                setUp=setUp,
+                tearDown=setupstack.tearDown,
+                )
+            ))
