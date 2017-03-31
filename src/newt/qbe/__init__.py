@@ -56,24 +56,16 @@ class scalar(Search):
         return "create index newt_%s_idx on newt (%s)" % (
             name, expr)
 
-class array(Search):
+class text_array(Search):
 
-    def __init__(self, expr, type=None):
+    def __init__(self, expr):
         if is_identifier(expr):
-            expr = "state -> %r" % expr
-
-        if is_access(expr):
-            expr = (
-                "array(select value%s from jsonb_array_elements_text(%s))" % (
-                    '::' + type if type else '',
-                    expr
-                    )
-                )
+            expr = "(state -> %r)" % expr
         elif not is_paranthesized(expr):
             expr = '(' + expr + ')'
 
         self.expr = expr
-        self._any = self.expr + ' && %s'
+        self._any = self.expr + ' ?| %s'
 
     def __call__(self, cursor, query):
         return cursor.mogrify(self._any, (query,))
@@ -109,15 +101,14 @@ class prefix(Search):
 
 class fulltext(Search):
 
-    def __init__(self, expr,
-                 config=None,
+    def __init__(self, expr, config,
                  parser=None,
                  weights=(.1, .2, .4, 1.0),
                  ):
         if is_identifier(expr):
             expr = "state -> %r" % expr
 
-        config = repr(config) + ', ' if config else ''
+        config = repr(config) + ', '
 
         if is_access(expr):
             expr = '>>'.join(expr.rsplit('>', 1))

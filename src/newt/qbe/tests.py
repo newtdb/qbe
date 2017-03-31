@@ -83,60 +83,29 @@ class QBETests(newt.db.tests.base.TestCase):
                          self.qbe['x'].order_by(self.cursor, 'y'))
 
     def test_array(self):
-        from newt.qbe import array
-        self.qbe['x'] = array('x')
+        from newt.qbe import text_array
+        self.qbe['x'] = text_array('x')
         self.conn.commit()
         self.assertEqual(
-            b"array(select value from jsonb_array_elements_text(state -> 'x'))"
-            b" && ARRAY['a', 'b', 'c']",
+            b"(state -> 'x')"
+            b" ?| ARRAY['a', 'b', 'c']",
             self.qbe.sql(dict(x=['a', 'b', 'c'])))
         self.assertEqual(
-            b"array(select value from jsonb_array_elements_text(state -> 'x'))",
+            b"(state -> 'x')",
             self.qbe['x'].order_by(self.cursor, None))
         self.assertEqual(
-            "create index newt_foo_idx on newt using gin (array("
-            "select value from jsonb_array_elements_text(state -> 'x')))",
+            "create index newt_foo_idx on newt using gin ((state -> 'x'))",
             self.qbe['x'].index_sql('foo'))
 
-        self.qbe['x'] = array('x', type='int')
+        self.qbe["x"] = text_array("state->0-> 'z' ")
         self.conn.commit()
+        self.assertEqual(b"(state->0-> 'z' ) ?| ARRAY[0, 1, 2]",
+                         self.qbe.sql(dict(x=[0,1,2])))
         self.assertEqual(
-            b"array("
-            b"select value::int from jsonb_array_elements_text(state -> 'x')"
-            b")"
-            b" && ARRAY[0, 1, 2]",
-            self.qbe.sql(dict(x=[0,1,2])))
-        self.assertEqual(
-            b"array("
-            b"select value::int from jsonb_array_elements_text(state -> 'x')"
-            b")",
+            b"(state->0-> 'z' )",
             self.qbe['x'].order_by(self.cursor, None))
         self.assertEqual(
-            "create index newt_foo_idx on newt using gin (array("
-            "select value::int from jsonb_array_elements_text(state -> 'x')))",
-            self.qbe['x'].index_sql('foo'))
-
-        self.qbe["x"] = array("state->0-> 'z' ", type='int')
-        self.conn.commit()
-        self.assertEqual(
-            b"array("
-            b"select value::int from jsonb_array_elements_text("
-            b"state->0-> 'z' "
-            b")"
-            b")"
-            b" && ARRAY[0, 1, 2]",
-            self.qbe.sql(dict(x=[0,1,2])))
-        self.assertEqual(
-            b"array("
-            b"select value::int from jsonb_array_elements_text("
-            b"state->0-> 'z' "
-            b")"
-            b")",
-            self.qbe['x'].order_by(self.cursor, None))
-        self.assertEqual(
-            "create index newt_foo_idx on newt using gin (array("
-            "select value::int from jsonb_array_elements_text(state->0-> 'z' )"
-            "))",
+            "create index newt_foo_idx on newt using gin ((state->0-> 'z' ))",
             self.qbe['x'].index_sql('foo'))
 
     def test_prefix(self):
@@ -181,21 +150,7 @@ class QBETests(newt.db.tests.base.TestCase):
     def test_fulltext(self):
         from newt.qbe import fulltext
 
-        self.qbe['x'] = fulltext('x')
-        self.conn.commit()
-        self.assertEqual(b"to_tsvector(state ->> 'x') @@ to_tsquery('y')",
-                         self.qbe.sql(dict(x='y')))
-        self.assertEqual(
-            b"ts_rank_cd({0.1, 0.2, 0.4, 1},"
-            b" to_tsvector(state ->> 'x'),"
-            b" to_tsquery('y'))",
-            self.qbe['x'].order_by(self.cursor, 'y'))
-        self.assertEqual(
-            "create index newt_foo_idx on newt using gin "
-            "(to_tsvector(state ->> 'x'))",
-            self.qbe['x'].index_sql('foo'))
-
-        self.qbe['x'] = fulltext('x', config='klingon')
+        self.qbe['x'] = fulltext('x', 'klingon')
         self.conn.commit()
         self.assertEqual(
             b"to_tsvector('klingon', state ->> 'x') @@"
@@ -211,8 +166,7 @@ class QBETests(newt.db.tests.base.TestCase):
             "(to_tsvector('klingon', state ->> 'x'))",
             self.qbe['x'].index_sql('foo'))
 
-        self.qbe['x'] = fulltext('x', config='klingon',
-                                 weights=(.2, .3, .5, .7))
+        self.qbe['x'] = fulltext('x', 'klingon', weights=(.2, .3, .5, .7))
         self.conn.commit()
         self.assertEqual(
             b"ts_rank_cd({0.2, 0.3, 0.5, 0.7},"
@@ -220,10 +174,12 @@ class QBETests(newt.db.tests.base.TestCase):
             b" to_tsquery('klingon', 'y'))",
             self.qbe['x'].order_by(self.cursor, 'y'))
 
-        self.qbe['x'] = fulltext('x', parser=crazy_parse)
+        self.qbe['x'] = fulltext('x', 'xxx', parser=crazy_parse)
         self.conn.commit()
-        self.assertEqual(b"to_tsvector(state ->> 'x') @@ to_tsquery('CRAZY y')",
-                         self.qbe.sql(dict(x='y')))
+        self.assertEqual(
+            b"to_tsvector('xxx', state ->> 'x') @@"
+            b" to_tsquery('xxx', 'CRAZY y')",
+            self.qbe.sql(dict(x='y')))
 
     def test_sql(self):
         from newt.qbe import sql
@@ -244,20 +200,21 @@ class QBETests(newt.db.tests.base.TestCase):
         self.assertEqual(None, self.qbe['x'].order_by(self.cursor, (42,)))
 
     def test_qbe(self):
-        from newt.qbe import prefix, array, fulltext
+        from newt.qbe import prefix, text_array, fulltext
 
         self.qbe['path'] = prefix('path(state)', delimiter='/')
-        self.qbe['can_view'] = array('can_view(state)')
-        self.qbe['text'] = fulltext('text')
+        self.qbe['can_view'] = text_array('can_view(state)')
+        self.qbe['text'] = fulltext('text', 'english')
         self.conn.commit()
 
         self.assertEqual(
-            b"can_view(state) && ARRAY['p1', 'g2'] AND\n"
+            b"can_view(state) ?| ARRAY['p1', 'g2'] AND\n"
             b"  (path(state) like '/foo' || '/%') AND\n"
-            b"  to_tsvector(state ->> 'text') @@ to_tsquery('thursday')\n"
+            b"  to_tsvector('english', state ->> 'text') @@"
+            b" to_tsquery('english', 'thursday')\n"
             b"ORDER BY ts_rank_cd({0.1, 0.2, 0.4, 1},"
-            b" to_tsvector(state ->> 'text'),"
-            b" to_tsquery('thursday'))",
+            b" to_tsvector('english', state ->> 'text'),"
+            b" to_tsquery('english', 'thursday'))",
             self.qbe.sql(dict(path="/foo",
                               can_view=['p1', 'g2'],
                               text="thursday"),
@@ -265,12 +222,13 @@ class QBETests(newt.db.tests.base.TestCase):
             )
 
         self.assertEqual(
-            b"can_view(state) && ARRAY['p1', 'g2'] AND\n"
+            b"can_view(state) ?| ARRAY['p1', 'g2'] AND\n"
             b"  (path(state) like '/foo' || '/%') AND\n"
-            b"  to_tsvector(state ->> 'text') @@ to_tsquery('thursday')\n"
+            b"  to_tsvector('english', state ->> 'text') @@"
+            b" to_tsquery('english', 'thursday')\n"
             b"ORDER BY ts_rank_cd({0.1, 0.2, 0.4, 1},"
-            b" to_tsvector(state ->> 'text'),"
-            b" to_tsquery('thursday')) DESC",
+            b" to_tsvector('english', state ->> 'text'),"
+            b" to_tsquery('english', 'thursday')) DESC",
             self.qbe.sql(dict(path="/foo",
                               can_view=['p1', 'g2'],
                               text="thursday"),
@@ -278,9 +236,105 @@ class QBETests(newt.db.tests.base.TestCase):
                          )
             )
 
+    def test_integration(self):
+        qbe = self.qbe
+        from newt.qbe import scalar, text_array, prefix, fulltext, sql
+        qbe['stars'] = scalar('stars', 'int')
+        qbe['allowed'] = text_array('allowed')
+        qbe['path'] = prefix('path', delimiter='/')
+        qbe['text'] = fulltext('text', 'english')
+        qbe['ends'] = sql("state ->> 'path' like '%%' || %s")
+
+        import psycopg2
+        from contextlib import closing
+        with closing(psycopg2.connect(self.dsn)) as conn:
+            with closing(conn.cursor()) as cursor:
+                cursor.execute(qbe.index_sql())
+                conn.commit()
+
+        from newt.db import Object
+        root = self.conn.root
+        root.content = (
+            Object(
+                stars = 5,
+                allowed = ['all'],
+                path = '/db/newt_review',
+                text = 'the best database is newt',
+                ),
+            Object(
+                stars = 4,
+                allowed = ['victoria', 'will'],
+                path = '/db/secret_review',
+                text = 'newt uses ZODB',
+                ),
+            Object(
+                stars = 3,
+                allowed = ['victoria', 'paul'],
+                path = '/db/summary',
+                text = 'We have two newt reviews',
+                ),
+            Object(
+                stars = 2,
+                allowed = ['paul', 'mary'],
+                path = '/news/friday',
+                text = 'qbe is nearing release',
+                ),
+            )
+        self.conn.commit()
+        where = self.conn.where
+
+
+        self.assertEqual(
+            ['newt uses ZODB'],
+            [o.text for o in where(qbe.sql(dict(stars=4)))],
+            )
+
+        self.assertEqual(
+            ['qbe is nearing release', 'We have two newt reviews',
+             'newt uses ZODB'],
+            [o.text for o in where(qbe.sql(dict(stars=(None, 4)),
+                                           order_by=['stars']))],
+            )
+
+        self.assertEqual(
+            ['We have two newt reviews', 'newt uses ZODB'],
+            [o.text for o in where(qbe.sql(dict(stars=(3, 4)),
+                                           order_by=['stars']))],
+            )
+
+        self.assertEqual(
+            ['We have two newt reviews', 'newt uses ZODB'],
+            [o.text for o in where(qbe.sql(dict(stars=(None, 4), path='/db'),
+                                           order_by=['stars']))],
+            )
+
+        self.assertEqual(
+            ['newt uses ZODB', 'We have two newt reviews'],
+            [o.text for o in where(qbe.sql(dict(stars=(None, 4), path='/db'),
+                                           order_by=[('stars', True)]))],
+            )
+
+        self.assertEqual(
+            ['We have two newt reviews', 'newt uses ZODB'],
+            [o.text for o in where(qbe.sql(dict(allowed=['victoria', 'bob']),
+                                           order_by=['stars']))],
+            )
+
+        self.assertEqual(
+            ['qbe is nearing release', 'We have two newt reviews',
+             'newt uses ZODB'],
+            [o.text for o in where(qbe.sql(dict(allowed=['victoria', 'paul']),
+                                           order_by=['stars']))],
+            )
+
+        self.assertEqual(
+            ['newt uses ZODB', 'the best database is newt'],
+            [o.text for o in where(qbe.sql(dict(ends=['review']),
+                                           order_by=['stars']))],
+            )
+
 def crazy_parse(q):
     return 'CRAZY ' + q
-
 
 README = os.path.join(os.path.dirname(__file__), '..', '..', '..', 'README.rst')
 if os.path.exists(README):

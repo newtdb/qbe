@@ -24,9 +24,9 @@ and add it to your database:
     >>> qbe = newt.qbe.QBE()
     >>> qbe['email'] = newt.qbe.scalar('email')
     >>> qbe['stars'] = newt.qbe.scalar("state->'rating'->'stars'", type='int')
-    >>> qbe['keywords'] = newt.qbe.array('keywords')
+    >>> qbe['keywords'] = newt.qbe.text_array('keywords')
     >>> qbe['path'] = newt.qbe.prefix('path', delimiter='/')
-    >>> qbe['text'] = newt.qbe.fulltext('content_text(state)')
+    >>> qbe['text'] = newt.qbe.fulltext('content_text(state)', 'english')
     >>> conn = newt.db.connection(dsn)
     >>> conn.root.qbe = qbe
     >>> conn.commit()
@@ -46,8 +46,8 @@ helpers:
 scalar
   Search scalar data
 
-array
-  Search array data
+text_array
+  Search text-array data
 
 prefix
   Search string scalars by prefix.
@@ -121,9 +121,9 @@ created in the overview section:
   >>> print(qbe.sql(dict(text='database', path='/wiki'),
   ...               order_by=[('stars', True), 'text']).decode('ascii'))
   (((state ->> 'path') || '/') like '/wiki' || '/%') AND
-    content_text(state) @@ to_tsquery('database')
+    content_text(state) @@ to_tsquery('english', 'database')
   ORDER BY (state->'rating'->>'stars')::int DESC,
-    ts_rank_cd({0.1, 0.2, 0.4, 1}, content_text(state), to_tsquery('database'))
+    ts_rank_cd({0.1, 0.2, 0.4, 1}, content_text(state), to_tsquery('english', 'database'))
 
 ``index_sql(*names)``
 ---------------------
@@ -134,7 +134,7 @@ implement the optional ``index_sql`` method) are returned).
 
     >>> print(qbe.index_sql())
     create index newt_email_idx on newt ((state ->> 'email'));
-    create index newt_keywords_idx on newt using gin (array(select value from jsonb_array_elements_text(state -> 'keywords')));
+    create index newt_keywords_idx on newt using gin ((state -> 'keywords'));
     create index newt_path_idx on newt (((state ->> 'path') || '/') text_pattern_ops);
     create index newt_stars_idx on newt (((state->'rating'->>'stars')::int));
     create index newt_text_idx on newt using gin (content_text(state))
@@ -160,16 +160,14 @@ it will be modified to produce a text result::
 You can supply an optional second argument giving the name of a
 PostgreSQL data type to convert the text value to.
 
-``array(expr, type=None)``
---------------------------
+``text_array(expr)``
+--------------------
 
-The ``array`` helper searches based on array values. The constructor takes
-an expression that yields a PostgreSQL array.
+The ``array`` helper searches based on text-array values. The constructor takes
+an expression that yields a PostgreSQL JSONB array of text.
 
-For convenience, if an identifier or a JSON accessor (like
-``state -> 'x' -> 0``) is given, an array expression is generated. In
-this case, an optional second argument may be provided with the name
-of a PostgreSQL data type to convert the text values to.
+For convenience, if an identifier is given, it's converted to a JSON
+expression.
 
 ``prefix(expr, delimiter=None)``
 --------------------------------
@@ -187,25 +185,23 @@ an expression is generated from an identifier or simpler JSON
 accessor, then the delimiter will be included in the generated
 expression as well.
 
-``fulltext(expr, config=None, parer=None, weights=(.1, .2, .4, 1.0)``
+``fulltext(expr, config, parer=None, weights=(.1, .2, .4, 1.0)``
 ---------------------------------------------------------------------
 
-The ``fulltext`` helper supports full-text search.  The constructor takes
-an expression that evaluates to a PostgreSQL `ts_vector
-<https://www.postgresql.org/docs/current/static/datatype-textsearch.html#DATATYPE-TSVECTOR>`_.
+The ``fulltext`` helper supports full-text search.  The constructor
+takes an expression that evaluates to a PostgreSQL `ts_vector
+<https://www.postgresql.org/docs/current/static/datatype-textsearch.html#DATATYPE-TSVECTOR>`_
+and the name of a `test-search configuration
+<https://www.postgresql.org/docs/current/static/textsearch-intro.html#TEXTSEARCH-INTRO-CONFIGURATIONS>`_.
 
 For convenience, if an identifier or a JSON accessor (like ``state ->
-'x' -> 0``) is given, a tsvector expression is generated. In this
-case, an optional ``config`` argument may be provided to supply a
-`text-search configuration
-<https://www.postgresql.org/docs/current/static/textsearch-intro.html#TEXTSEARCH-INTRO-CONFIGURATIONS>`_.
+'x' -> 0``) is given, a tsvector expression is generated.
 
 When searching, queries are provided as strings that are passed
 `to_tsquery
-<https://www.postgresql.org/docs/current/static/textsearch-controls.html#TEXTSEARCH-PARSING-QUERIES>`_.
-The text-configuration name provided by the ``config`` argument will
-be used, if provided.  An optional query parser function may be
-provided to transform the search queries.
+<https://www.postgresql.org/docs/current/static/textsearch-controls.html#TEXTSEARCH-PARSING-QUERIES>`_. An
+optional query parser function may be provided to transform the search
+queries.
 
 If a text helper is used for ordering, the `ts_rank_cd function
 <https://www.postgresql.org/docs/current/static/textsearch-controls.html#TEXTSEARCH-RANKING>`_
