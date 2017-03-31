@@ -147,11 +147,11 @@ class sql(persistent.Persistent):
         self.order = order
 
     def __call__(self, cursor, query):
-        return cursor.mogrify(self.cond, query)
+        return cursor.mogrify(self.cond, (query,))
 
     def order_by(self, cursor, query):
         if self.order:
-            return cursor.mogrify(self.order, query)
+            return cursor.mogrify(self.order, (query,))
 
 class QBE(persistent.mapping.PersistentMapping):
 

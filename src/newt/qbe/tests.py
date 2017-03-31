@@ -186,18 +186,18 @@ class QBETests(newt.db.tests.base.TestCase):
 
         self.qbe['x'] = sql('%s = 42', "%s")
         self.conn.commit()
-        self.assertEqual(b"42 = 42", self.qbe.sql(dict(x=(42,))))
-        self.assertEqual(b"42", self.qbe['x'].order_by(self.cursor, (42,)))
+        self.assertEqual(b"42 = 42", self.qbe.sql(dict(x=42)))
+        self.assertEqual(b"42", self.qbe['x'].order_by(self.cursor, 42))
 
         self.qbe['x'] = sql('%s = 42', b"42")
         self.conn.commit()
-        self.assertEqual(b"42 = 42", self.qbe.sql(dict(x=(42,))))
-        self.assertEqual(b"42", self.qbe['x'].order_by(self.cursor, (42,)))
+        self.assertEqual(b"42 = 42", self.qbe.sql(dict(x=42)))
+        self.assertEqual(b"42", self.qbe['x'].order_by(self.cursor, 42))
 
         self.qbe['x'] = sql('%s = 42')
         self.conn.commit()
-        self.assertEqual(b"42 = 42", self.qbe.sql(dict(x=(42,))))
-        self.assertEqual(None, self.qbe['x'].order_by(self.cursor, (42,)))
+        self.assertEqual(b"42 = 42", self.qbe.sql(dict(x=42)))
+        self.assertEqual(None, self.qbe['x'].order_by(self.cursor, 42))
 
     def test_qbe(self):
         from newt.qbe import prefix, text_array, fulltext
@@ -329,7 +329,7 @@ class QBETests(newt.db.tests.base.TestCase):
 
         self.assertEqual(
             ['newt uses ZODB', 'the best database is newt'],
-            [o.text for o in where(qbe.sql(dict(ends=['review']),
+            [o.text for o in where(qbe.sql(dict(ends='review'),
                                            order_by=['stars']))],
             )
 

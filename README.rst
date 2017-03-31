@@ -166,6 +166,11 @@ PostgreSQL data type to convert the text value to.
 The ``array`` helper searches based on text-array values. The constructor takes
 an expression that yields a PostgreSQL JSONB array of text.
 
+Searches are based on overlap. Search criteria are satisfied if
+searched values have elements in common with the given query
+value. For example, a query: ``['a', 'b']`` matches stored JSON
+``["a", "c"]``.
+
 For convenience, if an identifier is given, it's converted to a JSON
 expression.
 
@@ -212,11 +217,26 @@ will be called with the supplied weights.
 
 The ``sql`` helper provides a way to encapsulate more or less arbitrary
 SQL as a search helper.  The constructor takes an string SQL
-expression to use when searching.  The string should contain
-`placeholders
+expression to use when searching.  The string should contain a single
+`placeholder
 <http://initd.org/psycopg/docs/usage.html#passing-parameters-to-sql-queries>`_
-for substituting query data. Query values must be sequences or
-dictionaries.
+for substituting query data.
 
 An optional second argument provides an SQL expression to use for
 ordering.
+
+Status
+======
+
+This project is in an early stage of development.  The built-in
+helpers cover common cases.  Initial helpers are convenient for the
+initial application for which this is being developed.  It's easy to
+imagine future enhancements.  Contributions and suggestions are
+welcome, especially when motivated by specific needs.
+
+It's worth noting that the ``sql`` helper can cover a lot of gaps.
+For example the initial applications needs to search against
+PostgreSQL arrays returned from functions, rather than JSON arrays.
+This is easily handled by the ``sql`` helper::
+
+  sql("allowed_to_view(state) && %s")
