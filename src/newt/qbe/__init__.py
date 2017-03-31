@@ -160,10 +160,7 @@ class sql(persistent.Persistent):
 
     def order_by(self, cursor, query):
         if self.order:
-            if isinstance(self.order, bytes):
-                return self.order
-            else:
-                return cursor.mogrify(self.order, query)
+            return cursor.mogrify(self.order, query)
 
 class QBE(persistent.mapping.PersistentMapping):
 
