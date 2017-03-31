@@ -287,7 +287,8 @@ if os.path.exists(README):
     def test_suite():
         import doctest
         import newt.db.tests.testdocs
-        from zope.testing import setupstack
+        import re
+        from zope.testing import renormalizing, setupstack
 
         def setUp(test):
             newt.db.tests.testdocs.setUp(test)
@@ -301,5 +302,8 @@ if os.path.exists(README):
                 '../../../README.rst',
                 setUp=setUp,
                 tearDown=setupstack.tearDown,
+                checker=renormalizing.RENormalizing([
+                    (re.compile("b'true'"), "'true'"),
+                    ]),
                 )
             ))
