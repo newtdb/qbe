@@ -245,9 +245,8 @@ class QBETests(newt.db.tests.base.TestCase):
         qbe['text'] = fulltext('text', 'english')
         qbe['ends'] = sql("state ->> 'path' like '%%' || %s")
 
-        import psycopg2
         from contextlib import closing
-        with closing(psycopg2.connect(self.dsn)) as conn:
+        with closing(newt.db.pg_connection(self.dsn)) as conn:
             with closing(conn.cursor()) as cursor:
                 cursor.execute(qbe.index_sql())
                 conn.commit()
