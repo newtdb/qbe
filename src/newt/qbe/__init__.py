@@ -53,7 +53,7 @@ class scalar(Search):
         expr = self.expr
         if not is_paranthesized(expr):
             expr = '(' + expr + ')'
-        return "create index newt_%s_idx on newt (%s)" % (
+        return "CREATE INDEX CONCURRENTLY newt_%s_idx ON newt (%s)" % (
             name, expr)
 
 class text_array(Search):
@@ -71,8 +71,8 @@ class text_array(Search):
         return cursor.mogrify(self._any, (query,))
 
     def index_sql(self, name):
-        return "create index newt_%s_idx on newt using gin (%s)" % (
-            name, self.expr)
+        return ("CREATE INDEX CONCURRENTLY newt_%s_idx ON newt USING GIN (%s)" %
+                (name, self.expr))
 
 class prefix(Search):
 
@@ -96,8 +96,10 @@ class prefix(Search):
         return cursor.mogrify(self._like, (query,))
 
     def index_sql(self, name):
-        return "create index newt_%s_idx on newt (%s text_pattern_ops)" % (
-            name, self.expr)
+        return (
+            "CREATE INDEX CONCURRENTLY newt_%s_idx"
+            " ON newt (%s text_pattern_ops)" %
+            (name, self.expr))
 
 class fulltext(Search):
 
@@ -137,8 +139,9 @@ class fulltext(Search):
         return cursor.mogrify(self._order, (query,))
 
     def index_sql(self, name):
-        return "create index newt_%s_idx on newt using gin (%s)" % (
-            name, self.expr)
+        return (
+            "CREATE INDEX CONCURRENTLY newt_%s_idx ON newt USING GIN (%s)" %
+            (name, self.expr))
 
 class sql(persistent.Persistent):
 
@@ -186,8 +189,7 @@ class QBE(persistent.mapping.PersistentMapping):
         return b''.join(result)
 
     def index_sql(self, *names):
-        return ';\n'.join(
-            self[name].index_sql(name)
-            for name in sorted(names or self)
-            if hasattr(self[name], 'index_sql')
-            )
+        return [self[name].index_sql(name)
+                for name in sorted(names or self)
+                if hasattr(self[name], 'index_sql')
+                ]

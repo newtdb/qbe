@@ -128,16 +128,21 @@ created in the overview section:
 ``index_sql(*names)``
 ---------------------
 
-Return PostgreSQL text to create indexes for the given helpers.  If no
-helpers are specified, then statements for all of the helpers (that
-implement the optional ``index_sql`` method) are returned).
+Return a list of PostgreSQL texts to create indexes for the given
+helpers.  If no helpers are specified, then statements for all of the
+helpers (that implement the optional ``index_sql`` method) are
+returned).
 
-    >>> print(qbe.index_sql())
-    create index newt_email_idx on newt ((state ->> 'email'));
-    create index newt_keywords_idx on newt using gin ((state -> 'keywords'));
-    create index newt_path_idx on newt (((state ->> 'path') || '/') text_pattern_ops);
-    create index newt_stars_idx on newt (((state->'rating'->>'stars')::int));
-    create index newt_text_idx on newt using gin (content_text(state))
+    >>> for sql in qbe.index_sql():
+    ...     print(sql)
+    CREATE INDEX CONCURRENTLY newt_email_idx ON newt ((state ->> 'email'))
+    CREATE INDEX CONCURRENTLY newt_keywords_idx ON newt USING GIN ((state -> 'keywords'))
+    CREATE INDEX CONCURRENTLY newt_path_idx ON newt (((state ->> 'path') || '/') text_pattern_ops)
+    CREATE INDEX CONCURRENTLY newt_stars_idx ON newt (((state->'rating'->>'stars')::int))
+    CREATE INDEX CONCURRENTLY newt_text_idx ON newt USING GIN (content_text(state))
+
+A list is returned because the statements need to be executed
+individually (because of the user of ``CONCURRENTLY``).
 
 Built-in helpers
 ================
