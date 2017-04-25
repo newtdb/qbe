@@ -1,7 +1,6 @@
 import contextlib
+import json
 from newt.db.search import read_only_cursor
-import persistent
-import persistent.mapping
 import re
 import six
 
@@ -10,7 +9,7 @@ is_identifier = re.compile(r'\w+$').match
 is_access = re.compile(r"state\s*(->\s*(\d+|'\w+')\s*)+$").match
 is_paranthesized = re.compile("\w*[(].+[)]$").match
 
-class Search(persistent.Persistent):
+class Search(object):
 
     def order_by(self, cursor, query):
         return self.expr.encode('ascii')
@@ -65,7 +64,7 @@ class text_array(Search):
             expr = '(' + expr + ')'
 
         self.expr = expr
-        self._any = self.expr + ' ?| %s'
+        self._any = self.expr + ' && %s'
 
     def __call__(self, cursor, query):
         return cursor.mogrify(self._any, (query,))
@@ -143,7 +142,7 @@ class fulltext(Search):
             "CREATE INDEX CONCURRENTLY newt_%s_idx ON newt USING GIN (%s)" %
             (name, self.expr))
 
-class sql(persistent.Persistent):
+class sql():
 
     def __init__(self, cond, order=None):
         self.cond = cond
@@ -156,10 +155,10 @@ class sql(persistent.Persistent):
         if self.order:
             return cursor.mogrify(self.order, (query,))
 
-class QBE(persistent.mapping.PersistentMapping):
+class QBE(dict):
 
-    def sql(self, query, order_by=()):
-        with contextlib.closing(read_only_cursor(self._p_jar)) as cursor:
+    def sql(self, conn, query, order_by=()):
+        with contextlib.closing(read_only_cursor(conn)) as cursor:
             result = []
             wheres = [self[name](cursor, q) for name, q in query.items()]
             if wheres:

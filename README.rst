@@ -20,21 +20,20 @@ Overview
 To set up Newt QBE, you'll create a QBE object, add some items to it,
 and add it to your database:
 
-    >>> import newt.db, newt.qbe
+    >>> import newt.qbe
     >>> qbe = newt.qbe.QBE()
     >>> qbe['email'] = newt.qbe.scalar('email')
     >>> qbe['stars'] = newt.qbe.scalar("state->'rating'->'stars'", type='int')
     >>> qbe['keywords'] = newt.qbe.text_array('keywords')
     >>> qbe['path'] = newt.qbe.prefix('path', delimiter='/')
     >>> qbe['text'] = newt.qbe.fulltext('content_text(state)', 'english')
-    >>> conn = newt.db.connection(dsn)
-    >>> conn.root.qbe = qbe
-    >>> conn.commit()
 
 Then, you can generate SQL using the ``sql`` method, which takes a
 dictionary of item names and values:
 
-    >>> sql = qbe.sql(dict(path='/foo', text='newt'))
+    >>> import newt.db
+    >>> conn = newt.db.connection(dsn)
+    >>> sql = qbe.sql(conn, dict(path='/foo', text='newt'))
     >>> result = conn.where(sql)
 
 In addition to a criteria mapping, you can supply an ``order_by``
@@ -115,10 +114,10 @@ be helper names or two-tuples containing helper names and descending flags.
 To illustrate the usage, here are some examples using the QBE object
 created in the overview section:
 
-  >>> qbe.sql(dict())
+  >>> qbe.sql(conn, dict())
   b'true'
 
-  >>> print(qbe.sql(dict(text='database', path='/wiki'),
+  >>> print(qbe.sql(conn, dict(text='database', path='/wiki'),
   ...               order_by=[('stars', True), 'text']).decode('ascii'))
   (((state ->> 'path') || '/') like '/wiki' || '/%') AND
     content_text(state) @@ to_tsquery('english', 'database')
