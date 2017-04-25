@@ -11,12 +11,15 @@ is_paranthesized = re.compile("\w*[(].+[)]$").match
 
 class Search(object):
 
+    def convert(self, v):
+        return v
+
     def order_by(self, cursor, query):
         return self.expr.encode('ascii')
 
 class scalar(Search):
 
-    def __init__(self, expr, type=None):
+    def __init__(self, expr, type=None, convert=None):
         if is_identifier(expr):
             expr = 'state ->> %r' % expr
 
@@ -36,16 +39,23 @@ class scalar(Search):
         self._ge =    '(%(expr)s >= %%s)'                         % d
         self._le =    '(%(expr)s <= %%s)'                         % d
 
+        if convert is not None:
+            self.convert = convert
+
     def __call__(self, cursor, query):
         if not isinstance(query, tuple):
-            return cursor.mogrify(self._eq, (query,))
+            return cursor.mogrify(self._eq, (self.convert(query),))
 
         min, max = query
         if min is None:
+            max = self.convert(max)
             return cursor.mogrify(self._le, (max,))
         elif max is None:
+            min = self.convert(min)
             return cursor.mogrify(self._ge, (min,))
         else:
+            min = self.convert(min)
+            max = self.convert(max)
             return cursor.mogrify(self._range, (min, max))
 
     def index_sql(self, name):
@@ -57,7 +67,7 @@ class scalar(Search):
 
 class text_array(Search):
 
-    def __init__(self, expr):
+    def __init__(self, expr, convert=None):
         if is_identifier(expr):
             expr = "(state -> %r)" % expr
         elif not is_paranthesized(expr):
@@ -66,7 +76,11 @@ class text_array(Search):
         self.expr = expr
         self._any = self.expr + ' && %s'
 
+        if convert is not None:
+            self.convert = convert
+
     def __call__(self, cursor, query):
+        query = self.convert(query)
         return cursor.mogrify(self._any, (query,))
 
     def index_sql(self, name):
@@ -75,7 +89,7 @@ class text_array(Search):
 
 class prefix(Search):
 
-    def __init__(self, expr, delimiter=None):
+    def __init__(self, expr, delimiter=None, convert=None):
         if is_identifier(expr):
             expr = 'state -> %r' % expr
 
@@ -91,7 +105,11 @@ class prefix(Search):
 
         self._like = "(%s like %%s || '%s%%%%')" % (expr, delimiter or '')
 
+        if convert is not None:
+            self.convert = convert
+
     def __call__(self, cursor, query):
+        query = self.convert(query)
         return cursor.mogrify(self._like, (query,))
 
     def index_sql(self, name):
@@ -105,6 +123,7 @@ class fulltext(Search):
     def __init__(self, expr, config,
                  parser=None,
                  weights=(.1, .2, .4, 1.0),
+                 convert=None
                  ):
         if is_identifier(expr):
             expr = "state -> %r" % expr
@@ -127,6 +146,9 @@ class fulltext(Search):
         self.parser = parser
         self.weights = weights
 
+        if convert is not None:
+            self.convert = convert
+
     def __call__(self, cursor, query):
         if self.parser is not None:
             query = self.parser(query)
@@ -144,11 +166,18 @@ class fulltext(Search):
 
 class sql():
 
-    def __init__(self, cond, order=None):
+    def __init__(self, cond, order=None, convert=None):
         self.cond = cond
         self.order = order
 
+        if convert is not None:
+            self.convert = convert
+
+    def convert(self, v):
+        return v
+
     def __call__(self, cursor, query):
+        query = self.convert(query)
         return cursor.mogrify(self.cond, (query,))
 
     def order_by(self, cursor, query):

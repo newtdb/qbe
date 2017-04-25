@@ -146,8 +146,8 @@ individually (because of the user of ``CONCURRENTLY``).
 Built-in helpers
 ================
 
-``scalar(expr, type=None)``
----------------------------
+``scalar(expr, type=None, convert=None)``
+-----------------------------------------
 
 The ``scalar`` helper searches based on scalar values.  The constructor
 takes an expression that yields a text result.  For convenience, if an
@@ -164,22 +164,27 @@ it will be modified to produce a text result::
 You can supply an optional second argument giving the name of a
 PostgreSQL data type to convert the text value to.
 
-``text_array(expr)``
---------------------
+The optional ``convert`` argument provides callable to be used to
+convert query values to values that may be passed to psycopg2 cursor
+``mogrify`` methods.
+
+``text_array(expr, convert=None)``
+----------------------------------
 
 The ``array`` helper searches based on text-array values. The constructor takes
-an expression that yields a PostgreSQL JSONB array of text.
+an expression that yields a PostgreSQL array of text.
 
 Searches are based on overlap. Search criteria are satisfied if
 searched values have elements in common with the given query
-value. For example, a query: ``['a', 'b']`` matches stored JSON
-``["a", "c"]``.
+value. For example, a query: ``['a', 'b']`` matches a PostgreSQL array
+``['a', 'c']``.
 
-For convenience, if an identifier is given, it's converted to a JSON
-expression.
+The optional ``convert`` argument provides callable to be used to
+convert query values to values that may be passed to psycopg2 cursor
+``mogrify`` methods.
 
-``prefix(expr, delimiter=None)``
---------------------------------
+``prefix(expr, delimiter=None, convert=None)``
+----------------------------------------------
 
 The ``prefix`` helper supports prefix queries against scalar text values.
 This will often be used for path searches.
@@ -194,8 +199,12 @@ an expression is generated from an identifier or simpler JSON
 accessor, then the delimiter will be included in the generated
 expression as well.
 
-``fulltext(expr, config, parer=None, weights=(.1, .2, .4, 1.0)``
----------------------------------------------------------------------
+The optional ``convert`` argument provides callable to be used to
+convert query values to values that may be passed to psycopg2 cursor
+``mogrify`` methods.
+
+``fulltext(expr, config, parer=None, weights=(.1, .2, .4, 1.0))``
+-----------------------------------------------------------------
 
 The ``fulltext`` helper supports full-text search.  The constructor
 takes an expression that evaluates to a PostgreSQL `ts_vector
@@ -216,8 +225,8 @@ If a text helper is used for ordering, the `ts_rank_cd function
 <https://www.postgresql.org/docs/current/static/textsearch-controls.html#TEXTSEARCH-RANKING>`_
 will be called with the supplied weights.
 
-``sql(cond, order=None)``
--------------------------
+``sql(cond, order=None, convert=None)``
+---------------------------------------
 
 The ``sql`` helper provides a way to encapsulate more or less arbitrary
 SQL as a search helper.  The constructor takes an string SQL
@@ -228,6 +237,10 @@ for substituting query data.
 
 An optional second argument provides an SQL expression to use for
 ordering.
+
+The optional ``convert`` argument provides callable to be used to
+convert query values to values that may be passed to psycopg2 cursor
+``mogrify`` methods.
 
 Status
 ======

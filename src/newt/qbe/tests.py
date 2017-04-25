@@ -81,6 +81,28 @@ class QBETests(newt.db.tests.base.TestCase):
         self.assertEqual(b"(state ->> 'x')::int",
                          self.qbe['x'].order_by(self.cursor, 'y'))
 
+        self.qbe['x'] = scalar("state ->> 'x'", type='int',
+                               convert = lambda v: v*2)
+        self.assertEqual(
+            b"((state ->> 'x')::int = 2)",
+            self.qbe.sql(self.conn, dict(x=1)))
+
+        self.assertEqual(
+            b"((state ->> 'x')::int <= 2)",
+            self.qbe.sql(self.conn, dict(x=(None, 1))))
+
+        self.assertEqual(
+            b"((state ->> 'x')::int >= 2)",
+            self.qbe.sql(self.conn, dict(x=(1, None))))
+
+        self.assertEqual(
+            b"(((state ->> 'x')::int >= 2) and"
+            b" ((state ->> 'x')::int <= 4))",
+            self.qbe.sql(self.conn, dict(x=(1,2))))
+        self.assertEqual(b"(state ->> 'x')::int",
+                         self.qbe['x'].order_by(self.cursor, 'y'))
+
+
     def test_array(self):
         from newt.qbe import text_array
         self.qbe['x'] = text_array('x')
@@ -106,6 +128,12 @@ class QBETests(newt.db.tests.base.TestCase):
             "CREATE INDEX CONCURRENTLY newt_foo_idx"
             " ON newt USING GIN ((state->0-> 'z' ))",
             self.qbe['x'].index_sql('foo'))
+
+        self.qbe["x"] = text_array("state->0-> 'z' ",
+                                   convert=lambda s: s.split())
+        self.assertEqual(b"(state->0-> 'z' ) && ARRAY['0', '1', '2']",
+                         self.qbe.sql(self.conn, dict(x='0 1 2')))
+
 
     def test_prefix(self):
         from newt.qbe import prefix
@@ -141,6 +169,11 @@ class QBETests(newt.db.tests.base.TestCase):
             "CREATE INDEX CONCURRENTLY newt_foo_idx ON newt "
             "(path(state) text_pattern_ops)",
             self.qbe['x'].index_sql('foo'))
+
+        self.qbe['x'] = prefix("path(state)",
+                               convert=lambda v: v.replace('|', '/'))
+        self.assertEqual(b"(path(state) like 'y/z' || '%')",
+                         self.qbe.sql(self.conn, dict(x='y|z')))
 
     def test_fulltext(self):
         from newt.qbe import fulltext
@@ -187,6 +220,9 @@ class QBETests(newt.db.tests.base.TestCase):
         self.qbe['x'] = sql('%s = 42')
         self.assertEqual(b"42 = 42", self.qbe.sql(self.conn, dict(x=42)))
         self.assertEqual(None, self.qbe['x'].order_by(self.cursor, 42))
+
+        self.qbe['x'] = sql('%s = 42', convert=lambda v: v*2)
+        self.assertEqual(b"42 = 42", self.qbe.sql(self.conn, dict(x=21)))
 
     def test_qbe(self):
         from newt.qbe import prefix, text_array, fulltext
