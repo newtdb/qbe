@@ -42,8 +42,11 @@ keyword argument to specify sorting information.
 The items in a QBE are search helpers.  There are several built-in
 helpers:
 
+match
+  Exact match scalar values, leveraging the standard JSONB GIN index
+
 scalar
-  Search scalar data
+  Search scalar data, including range search
 
 text_array
   Search text-array data
@@ -145,6 +148,13 @@ individually (because of the user of ``CONCURRENTLY``).
 
 Built-in helpers
 ================
+
+``match(name, convert=None)``
+-----------------------------
+
+Match named scalar values (using the JSONB ``@>`` operator). This
+leverages the JSON GIN index that's created by default for Newt
+databases. It doesn't support range searches.
 
 ``scalar(expr, type=None, convert=None)``
 -----------------------------------------

@@ -19,6 +19,21 @@ class QBETests(newt.db.tests.base.TestCase):
         self.conn.close()
         super(QBETests, self).tearDown()
 
+    def test_match(self):
+        from newt.qbe import match
+        self.qbe['x'] = match('x')
+        self.assertEqual(
+            b"""(state @> '{"x": "y"}'::jsonb)""",
+            self.qbe.sql(self.conn, dict(x='y')))
+        self.assertEqual(
+            b"""(state @> '{"x": 42}'::jsonb)""",
+            self.qbe.sql(self.conn, dict(x=42)))
+
+        self.qbe['x'] = match('x', convert=int)
+        self.assertEqual(
+            b"""(state @> '{"x": 42}'::jsonb)""",
+            self.qbe.sql(self.conn, dict(x='42')))
+
     def test_scalar(self):
         from newt.qbe import scalar
         self.qbe['x'] = scalar('x')
@@ -101,7 +116,6 @@ class QBETests(newt.db.tests.base.TestCase):
             self.qbe.sql(self.conn, dict(x=(1,2))))
         self.assertEqual(b"(state ->> 'x')::int",
                          self.qbe['x'].order_by(self.cursor, 'y'))
-
 
     def test_array(self):
         from newt.qbe import text_array

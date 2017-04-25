@@ -9,10 +9,24 @@ is_identifier = re.compile(r'\w+$').match
 is_access = re.compile(r"state\s*(->\s*(\d+|'\w+')\s*)+$").match
 is_paranthesized = re.compile("\w*[(].+[)]$").match
 
-class Search(object):
+class Convertible(object):
 
     def convert(self, v):
         return v
+
+class match(Convertible):
+
+    def __init__(self, name, convert=None):
+        self._expr = """(state @> '{"%s": %%s}'::jsonb)""" % name
+
+        if convert is not None:
+            self.convert = convert
+
+    def __call__(self, cursor, query):
+        query = self.convert(query)
+        return self._expr % json.dumps(query)
+
+class Search(Convertible):
 
     def order_by(self, cursor, query):
         return self.expr.encode('ascii')
@@ -164,7 +178,7 @@ class fulltext(Search):
             "CREATE INDEX CONCURRENTLY newt_%s_idx ON newt USING GIN (%s)" %
             (name, self.expr))
 
-class sql():
+class sql(Convertible):
 
     def __init__(self, cond, order=None, convert=None):
         self.cond = cond
@@ -172,9 +186,6 @@ class sql():
 
         if convert is not None:
             self.convert = convert
-
-    def convert(self, v):
-        return v
 
     def __call__(self, cursor, query):
         query = self.convert(query)
