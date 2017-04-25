@@ -1,6 +1,7 @@
-name, version = 'newt.qbe', '0'
+name = 'newt.qbe'
+version = '0'
 
-install_requires = ['setuptools', 'relstorage ==2.1a2', 'newt.db >=0.5.1']
+install_requires = ['setuptools', 'relstorage >=2.1a2', 'newt.db >=0.5.1']
 extras_require = dict(test=['manuel', 'mock', 'zope.testing'])
 
 entry_points = """
