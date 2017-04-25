@@ -17,14 +17,14 @@ class Convertible(object):
 class match(Convertible):
 
     def __init__(self, name, convert=None):
-        self._expr = """(state @> '{"%s": %%s}'::jsonb)""" % name
-
+        self.name = name
         if convert is not None:
             self.convert = convert
 
     def __call__(self, cursor, query):
         query = self.convert(query)
-        return self._expr % json.dumps(query)
+        return cursor.mogrify('(state @> %s::jsonb)',
+                              (json.dumps({self.name: query}),))
 
 class Search(Convertible):
 
