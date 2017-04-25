@@ -20,21 +20,20 @@ Overview
 To set up Newt QBE, you'll create a QBE object, add some items to it,
 and add it to your database:
 
-    >>> import newt.db, newt.qbe
+    >>> import newt.qbe
     >>> qbe = newt.qbe.QBE()
     >>> qbe['email'] = newt.qbe.scalar('email')
     >>> qbe['stars'] = newt.qbe.scalar("state->'rating'->'stars'", type='int')
     >>> qbe['keywords'] = newt.qbe.text_array('keywords')
     >>> qbe['path'] = newt.qbe.prefix('path', delimiter='/')
     >>> qbe['text'] = newt.qbe.fulltext('content_text(state)', 'english')
-    >>> conn = newt.db.connection(dsn)
-    >>> conn.root.qbe = qbe
-    >>> conn.commit()
 
 Then, you can generate SQL using the ``sql`` method, which takes a
 dictionary of item names and values:
 
-    >>> sql = qbe.sql(dict(path='/foo', text='newt'))
+    >>> import newt.db
+    >>> conn = newt.db.connection(dsn)
+    >>> sql = qbe.sql(conn, dict(path='/foo', text='newt'))
     >>> result = conn.where(sql)
 
 In addition to a criteria mapping, you can supply an ``order_by``
@@ -43,8 +42,11 @@ keyword argument to specify sorting information.
 The items in a QBE are search helpers.  There are several built-in
 helpers:
 
+match
+  Exact match scalar values, leveraging the standard JSONB GIN index
+
 scalar
-  Search scalar data
+  Search scalar data, including range search
 
 text_array
   Search text-array data
@@ -115,10 +117,10 @@ be helper names or two-tuples containing helper names and descending flags.
 To illustrate the usage, here are some examples using the QBE object
 created in the overview section:
 
-  >>> qbe.sql(dict())
+  >>> qbe.sql(conn, dict())
   b'true'
 
-  >>> print(qbe.sql(dict(text='database', path='/wiki'),
+  >>> print(qbe.sql(conn, dict(text='database', path='/wiki'),
   ...               order_by=[('stars', True), 'text']).decode('ascii'))
   (((state ->> 'path') || '/') like '/wiki' || '/%') AND
     content_text(state) @@ to_tsquery('english', 'database')
@@ -128,22 +130,34 @@ created in the overview section:
 ``index_sql(*names)``
 ---------------------
 
-Return PostgreSQL text to create indexes for the given helpers.  If no
-helpers are specified, then statements for all of the helpers (that
-implement the optional ``index_sql`` method) are returned).
+Return a list of PostgreSQL texts to create indexes for the given
+helpers.  If no helpers are specified, then statements for all of the
+helpers (that implement the optional ``index_sql`` method) are
+returned).
 
-    >>> print(qbe.index_sql())
-    create index newt_email_idx on newt ((state ->> 'email'));
-    create index newt_keywords_idx on newt using gin ((state -> 'keywords'));
-    create index newt_path_idx on newt (((state ->> 'path') || '/') text_pattern_ops);
-    create index newt_stars_idx on newt (((state->'rating'->>'stars')::int));
-    create index newt_text_idx on newt using gin (content_text(state))
+    >>> for sql in qbe.index_sql():
+    ...     print(sql)
+    CREATE INDEX CONCURRENTLY newt_email_idx ON newt ((state ->> 'email'))
+    CREATE INDEX CONCURRENTLY newt_keywords_idx ON newt USING GIN ((state -> 'keywords'))
+    CREATE INDEX CONCURRENTLY newt_path_idx ON newt (((state ->> 'path') || '/') text_pattern_ops)
+    CREATE INDEX CONCURRENTLY newt_stars_idx ON newt (((state->'rating'->>'stars')::int))
+    CREATE INDEX CONCURRENTLY newt_text_idx ON newt USING GIN (content_text(state))
+
+A list is returned because the statements need to be executed
+individually (because of the user of ``CONCURRENTLY``).
 
 Built-in helpers
 ================
 
-``scalar(expr, type=None)``
----------------------------
+``match(name, convert=None)``
+-----------------------------
+
+Match named scalar values (using the JSONB ``@>`` operator). This
+leverages the JSON GIN index that's created by default for Newt
+databases. It doesn't support range searches.
+
+``scalar(expr, type=None, convert=None)``
+-----------------------------------------
 
 The ``scalar`` helper searches based on scalar values.  The constructor
 takes an expression that yields a text result.  For convenience, if an
@@ -160,22 +174,27 @@ it will be modified to produce a text result::
 You can supply an optional second argument giving the name of a
 PostgreSQL data type to convert the text value to.
 
-``text_array(expr)``
---------------------
+The optional ``convert`` argument provides callable to be used to
+convert query values to values that may be passed to psycopg2 cursor
+``mogrify`` methods.
+
+``text_array(expr, convert=None)``
+----------------------------------
 
 The ``array`` helper searches based on text-array values. The constructor takes
-an expression that yields a PostgreSQL JSONB array of text.
+an expression that yields a PostgreSQL array of text.
 
 Searches are based on overlap. Search criteria are satisfied if
 searched values have elements in common with the given query
-value. For example, a query: ``['a', 'b']`` matches stored JSON
-``["a", "c"]``.
+value. For example, a query: ``['a', 'b']`` matches a PostgreSQL array
+``['a', 'c']``.
 
-For convenience, if an identifier is given, it's converted to a JSON
-expression.
+The optional ``convert`` argument provides callable to be used to
+convert query values to values that may be passed to psycopg2 cursor
+``mogrify`` methods.
 
-``prefix(expr, delimiter=None)``
---------------------------------
+``prefix(expr, delimiter=None, convert=None)``
+----------------------------------------------
 
 The ``prefix`` helper supports prefix queries against scalar text values.
 This will often be used for path searches.
@@ -190,8 +209,12 @@ an expression is generated from an identifier or simpler JSON
 accessor, then the delimiter will be included in the generated
 expression as well.
 
-``fulltext(expr, config, parer=None, weights=(.1, .2, .4, 1.0)``
----------------------------------------------------------------------
+The optional ``convert`` argument provides callable to be used to
+convert query values to values that may be passed to psycopg2 cursor
+``mogrify`` methods.
+
+``fulltext(expr, config, parer=None, weights=(.1, .2, .4, 1.0))``
+-----------------------------------------------------------------
 
 The ``fulltext`` helper supports full-text search.  The constructor
 takes an expression that evaluates to a PostgreSQL `ts_vector
@@ -212,8 +235,8 @@ If a text helper is used for ordering, the `ts_rank_cd function
 <https://www.postgresql.org/docs/current/static/textsearch-controls.html#TEXTSEARCH-RANKING>`_
 will be called with the supplied weights.
 
-``sql(cond, order=None)``
--------------------------
+``sql(cond, order=None, convert=None)``
+---------------------------------------
 
 The ``sql`` helper provides a way to encapsulate more or less arbitrary
 SQL as a search helper.  The constructor takes an string SQL
@@ -224,6 +247,10 @@ for substituting query data.
 
 An optional second argument provides an SQL expression to use for
 ordering.
+
+The optional ``convert`` argument provides callable to be used to
+convert query values to values that may be passed to psycopg2 cursor
+``mogrify`` methods.
 
 Status
 ======
