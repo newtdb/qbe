@@ -11,6 +11,25 @@ from setuptools import setup
 
 long_description=open('README.rst').read() + '\n\n' + open('CHANGES.rst').read()
 
+classifiers = """\
+Intended Audience :: Developers
+License :: OSI Approved :: MIT License
+Programming Language :: Python
+Programming Language :: Python :: 2
+Programming Language :: Python :: 2.7
+Programming Language :: Python :: 3
+Programming Language :: Python :: 3.4
+Programming Language :: Python :: 3.5
+Programming Language :: Python :: 3.6
+Programming Language :: Python :: Implementation :: CPython
+Programming Language :: Python :: Implementation :: PyPy
+Topic :: Database
+Topic :: Software Development :: Libraries :: Python Modules
+Operating System :: Microsoft :: Windows
+Operating System :: Unix
+Framework :: ZODB
+""".strip().split('\n')
+
 setup(
     author = 'Jim Fulton',
     author_email = 'jim@jimfulton.info',
@@ -29,4 +48,8 @@ setup(
     extras_require = extras_require,
     tests_require = extras_require['test'],
     test_suite = name+'.tests.test_suite',
+    classifiers = classifiers,
+    include_package_data = True,
+    keywords="database nosql python postgresql postgres search",
+    url='https://github.com/newtdb/qbe',
     )
