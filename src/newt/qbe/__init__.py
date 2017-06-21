@@ -154,8 +154,9 @@ class fulltext(Search):
 
         self._search = "%s @@ to_tsquery(%s%%s)" % (expr, config)
         d, c, b, a = weights
-        self._order = "ts_rank_cd({%g, %g, %g, %g}, %s, to_tsquery(%s%%s))" % (
-            d, c, b, a, expr, config)
+        self._order = (
+            "ts_rank_cd(array[%g, %g, %g, %g], %s, to_tsquery(%s%%s))" % (
+                d, c, b, a, expr, config))
 
         self.parser = parser
         self.weights = weights

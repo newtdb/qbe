@@ -125,7 +125,7 @@ created in the overview section:
   (((state ->> 'path') || '/') like '/wiki' || '/%') AND
     content_text(state) @@ to_tsquery('english', 'database')
   ORDER BY (state->'rating'->>'stars')::int DESC,
-    ts_rank_cd({0.1, 0.2, 0.4, 1}, content_text(state), to_tsquery('english', 'database'))
+    ts_rank_cd(array[0.1, 0.2, 0.4, 1], content_text(state), to_tsquery('english', 'database'))
 
 ``index_sql(*names)``
 ---------------------

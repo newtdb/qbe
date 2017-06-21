@@ -198,7 +198,7 @@ class QBETests(newt.db.tests.base.TestCase):
             b" to_tsquery('klingon', 'y')",
             self.qbe.sql(self.conn, dict(x='y')))
         self.assertEqual(
-            b"ts_rank_cd({0.1, 0.2, 0.4, 1},"
+            b"ts_rank_cd(array[0.1, 0.2, 0.4, 1],"
             b" to_tsvector('klingon', state ->> 'x'),"
             b" to_tsquery('klingon', 'y'))",
             self.qbe['x'].order_by(self.cursor, 'y'))
@@ -209,7 +209,7 @@ class QBETests(newt.db.tests.base.TestCase):
 
         self.qbe['x'] = fulltext('x', 'klingon', weights=(.2, .3, .5, .7))
         self.assertEqual(
-            b"ts_rank_cd({0.2, 0.3, 0.5, 0.7},"
+            b"ts_rank_cd(array[0.2, 0.3, 0.5, 0.7],"
             b" to_tsvector('klingon', state ->> 'x'),"
             b" to_tsquery('klingon', 'y'))",
             self.qbe['x'].order_by(self.cursor, 'y'))
@@ -250,7 +250,7 @@ class QBETests(newt.db.tests.base.TestCase):
             b"  (path(state) like '/foo' || '/%') AND\n"
             b"  to_tsvector('english', state ->> 'text') @@"
             b" to_tsquery('english', 'thursday')\n"
-            b"ORDER BY ts_rank_cd({0.1, 0.2, 0.4, 1},"
+            b"ORDER BY ts_rank_cd(array[0.1, 0.2, 0.4, 1],"
             b" to_tsvector('english', state ->> 'text'),"
             b" to_tsquery('english', 'thursday'))",
             self.qbe.sql(self.conn, dict(path="/foo",
@@ -264,7 +264,7 @@ class QBETests(newt.db.tests.base.TestCase):
             b"  (path(state) like '/foo' || '/%') AND\n"
             b"  to_tsvector('english', state ->> 'text') @@"
             b" to_tsquery('english', 'thursday')\n"
-            b"ORDER BY ts_rank_cd({0.1, 0.2, 0.4, 1},"
+            b"ORDER BY ts_rank_cd(array[0.1, 0.2, 0.4, 1],"
             b" to_tsvector('english', state ->> 'text'),"
             b" to_tsquery('english', 'thursday')) DESC",
             self.qbe.sql(self.conn, dict(path="/foo",
